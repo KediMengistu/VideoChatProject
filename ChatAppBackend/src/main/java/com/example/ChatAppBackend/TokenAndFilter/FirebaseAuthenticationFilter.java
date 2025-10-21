@@ -53,6 +53,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             Collection<GrantedAuthority> authorities = extractAuthorities(token);
 
             var authentication = new FirebaseAuthenticationToken(idToken, token, authorities);
+            authentication.setDetails(new CurrentUserDetails(token.getUid(), token.getEmail(), token));
             SecurityContextHolder.getContext().setAuthentication(authentication);
             filterChain.doFilter(request, response);
 

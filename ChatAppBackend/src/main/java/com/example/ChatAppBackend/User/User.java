@@ -2,6 +2,7 @@ package com.example.ChatAppBackend.User;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -24,8 +25,24 @@ public class User {
 
     private Instant lastLoginAt;
 
-    public User() {
-    }
+    // ---- Soft-delete / account state ----
+
+    /**
+     * When true, this account is considered disabled/soft-deleted
+     * and must not be allowed to perform actions.
+     */
+    @Column(nullable = false)
+    private boolean disabled = false;
+
+    /**
+     * Timestamp indicating when a deletion/disablement was requested.
+     * Useful for eventual-hard-delete schedulers.
+     */
+    private Instant deletionRequestedAt;
+
+    public User() {}
+
+    // ---- Getters / Setters ----
 
     public UUID getId() {
         return id;
@@ -65,5 +82,21 @@ public class User {
 
     public void setLastLoginAt(Instant lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public void setDisabled(boolean disabled) {
+        this.disabled = disabled;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
     }
 }
