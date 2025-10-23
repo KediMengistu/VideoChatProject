@@ -5,8 +5,6 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.auth.FirebaseAuth;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +13,6 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(FirebaseProperties.class)
 public class FirebaseAdminConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(FirebaseAdminConfig.class);
-
     /**
      * Build GoogleCredentials from individual env-backed properties.
      * NOTE: We only convert literal "\\n" to real newlines in the private key.
@@ -24,26 +20,6 @@ public class FirebaseAdminConfig {
      */
     @Bean
     public GoogleCredentials googleCredentials(FirebaseProperties props) {
-        // Soft sanity checks / visibility for the new fields
-        if (!isBlank(props.getType()) && !"service_account".equalsIgnoreCase(props.getType())) {
-            log.warn("firebase.type is '{}', expected 'service_account'.", props.getType());
-        }
-        if (isBlank(props.getProjectId())) {
-            log.warn("firebase.project-id is empty or missing.");
-        }
-        // URIs are not required by fromPkcs8, but we log presence for debugging
-        if (isBlank(props.getAuthUri()) || isBlank(props.getTokenUri())) {
-            log.debug("Auth/Token URIs not provided or blank (authUri='{}', tokenUri='{}').",
-                    props.getAuthUri(), props.getTokenUri());
-        }
-        if (isBlank(props.getAuthProviderX509CertUrl()) || isBlank(props.getClientX509CertUrl())) {
-            log.debug("X509 URLs not provided or blank (provider='{}', client='{}').",
-                    props.getAuthProviderX509CertUrl(), props.getClientX509CertUrl());
-        }
-        if (!isBlank(props.getUniverseDomain())) {
-            log.debug("Using universe domain '{}'.", props.getUniverseDomain());
-        }
-
         // Hard requirements for PKCS#8 path
         if (isBlank(props.getClientId())
                 || isBlank(props.getClientEmail())

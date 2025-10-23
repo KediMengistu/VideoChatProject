@@ -3,8 +3,6 @@ package com.example.ChatAppBackend.User;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,8 +11,6 @@ import java.time.Instant;
 
 @Service
 public class UserService {
-
-    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
     private final FirebaseAuth firebaseAuth; // <- inject Admin SDK
@@ -44,7 +40,6 @@ public class UserService {
             userInDB.setLastLoginAt(Instant.now());
             return this.userRepository.save(userInDB);
         } catch (DataAccessException dae) {
-            log.error("DB error creating/upserting user uid={}", user.uid(), dae);
             throw new RuntimeException("Failed to create or update user", dae);
         }
     }
@@ -57,7 +52,6 @@ public class UserService {
         try {
             return this.userRepository.findByFirebaseUid(user.uid());
         } catch (DataAccessException dae) {
-            log.error("DB error retrieving user uid={}", user.uid(), dae);
             throw new RuntimeException("Failed to retrieve user", dae);
         }
     }
@@ -75,9 +69,7 @@ public class UserService {
         // 1) Revoke Firebase tokens first; if this fails, abort (user would still be able to call the API).
         try {
             firebaseAuth.revokeRefreshTokens(uid);
-            log.info("Revoked refresh tokens for uid={}", uid);
         } catch (FirebaseAuthException fae) {
-            log.error("Failed to revoke Firebase tokens for uid={}", uid, fae);
             throw new RuntimeException("Failed to revoke Firebase tokens for user " + uid, fae);
         }
 
@@ -98,8 +90,7 @@ public class UserService {
             this.userRepository.delete(userInDB);
 
         } catch (DataAccessException dae) {
-            // Swallow after logging so the transaction STILL COMMITS the soft-delete flags.
-            log.warn("Hard delete failed for uid={}, leaving record soft-deleted for retry", uid, dae);
+            // Swallow so the transaction STILL COMMITS the soft-delete flags.
         }
     }
 }
