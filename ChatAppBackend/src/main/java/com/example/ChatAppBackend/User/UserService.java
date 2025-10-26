@@ -25,22 +25,21 @@ public class UserService {
      * Transactional since it writes to the DB.
      */
     @Transactional
-    public User createUser(CurrentUserDetails user) {
-        try {
-            User userInDB = this.userRepository.findByFirebaseUid(user.uid());
-            if (userInDB == null) {
-                userInDB = new User();
-                userInDB.setFirebaseUid(user.uid());
-                userInDB.setEmail(user.email());
-            }
-            // (Re)activate on successful login
-            userInDB.setDisabled(false);
-            userInDB.setDeletionRequestedAt(null);
-
-            userInDB.setLastLoginAt(Instant.now());
-            return this.userRepository.save(userInDB);
-        } catch (DataAccessException dae) {
-            throw new RuntimeException("Failed to create or update user", dae);
+    public User createOrTouchUser(CurrentUserDetails user) {
+        User u = userRepository.findByFirebaseUid(user.uid());
+        if (u == null) {
+            u = new User();
+            u.setFirebaseUid(user.uid());
+            u.setEmail(user.email());
+            u.setDisabled(false);
+            u.setDeletionRequestedAt(null);
+            // @PrePersist will set createdAt and lastLoginAt = same Instant
+            return userRepository.save(u);
+        } else {
+            u.setDisabled(false);
+            u.setDeletionRequestedAt(null);
+            u.setLastLoginAt(Instant.now()); // <-- update on each successful sign-in
+            return userRepository.save(u);
         }
     }
 

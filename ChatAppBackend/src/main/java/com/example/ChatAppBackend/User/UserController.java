@@ -16,7 +16,7 @@ public class UserController {
 
     @PostMapping("/enter")
     public User enter(@CurrentSecurityContext(expression = "authentication.details") CurrentUserDetails user){
-        return this.userService.createUser(user);
+        return this.userService.createOrTouchUser(user);
     }
 
     @GetMapping("/retrieve")

@@ -20,9 +20,9 @@ public class User {
     private String email;
 
     @Column(nullable = false, updatable = false)
-    @CreationTimestamp
     private Instant createdAt;
 
+    @Column(nullable = false)
     private Instant lastLoginAt;
 
     // ---- Soft-delete / account state ----
@@ -99,4 +99,12 @@ public class User {
     public void setDeletionRequestedAt(Instant deletionRequestedAt) {
         this.deletionRequestedAt = deletionRequestedAt;
     }
+
+    @PrePersist
+    public void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        if (lastLoginAt == null || lastLoginAt.isBefore(createdAt)) lastLoginAt = createdAt;
+    }
+
 }
