@@ -1,8 +1,11 @@
 package com.example.ChatAppBackend.User;
 
+import com.example.ChatAppBackend.Exceptions.CustomExceptions.ResourceNotFoundException;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +15,10 @@ import java.time.Instant;
 @Service
 public class UserService {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
-    private final FirebaseAuth firebaseAuth; // <- inject Admin SDK
+    private final FirebaseAuth firebaseAuth;
 
     public UserService(UserRepository userRepository, FirebaseAuth firebaseAuth) {
         this.userRepository = userRepository;
@@ -22,74 +27,85 @@ public class UserService {
 
     /**
      * Create (or update last-login for) a user.
-     * Transactional since it writes to the DB.
      */
     @Transactional
     public User createOrTouchUser(CurrentUserDetails user) {
         User u = userRepository.findByFirebaseUid(user.uid());
         if (u == null) {
+            logger.info("Creating new user with Firebase UID: {}", user.uid());
             u = new User();
             u.setFirebaseUid(user.uid());
             u.setEmail(user.email());
             u.setDisabled(false);
             u.setDeletionRequestedAt(null);
-            // @PrePersist will set createdAt and lastLoginAt = same Instant
             return userRepository.save(u);
         } else {
+            logger.info("Updating last login for existing user with Firebase UID: {}", user.uid());
             u.setDisabled(false);
             u.setDeletionRequestedAt(null);
-            u.setLastLoginAt(Instant.now()); // <-- update on each successful sign-in
+            u.setLastLoginAt(Instant.now());
             return userRepository.save(u);
         }
     }
 
     /**
-     * Read-only retrieval by Firebase UID.
+     * Retrieve user by Firebase UID.
      */
     @Transactional(readOnly = true)
     public User retrieveUser(CurrentUserDetails user) {
         try {
-            return this.userRepository.findByFirebaseUid(user.uid());
-        } catch (DataAccessException dae) {
-            throw new RuntimeException("Failed to retrieve user", dae);
+            logger.debug("Retrieving user with Firebase UID: {}", user.uid());
+            User currentUser = userRepository.findByFirebaseUid(user.uid());
+            if (currentUser == null) {
+                logger.warn("User not found with Firebase UID: {}", user.uid());
+                throw new ResourceNotFoundException("User not found with Firebase UID: " + user.uid());
+            }
+            return currentUser;
+        } catch (ResourceNotFoundException rnfe) {
+            throw rnfe; // preserve status code
+        } catch (Exception e) {
+            logger.error("Failed to retrieve user with Firebase UID: {}. Reason: {}", user.uid(), e.getMessage(), e);
+            throw new RuntimeException("Failed to retrieve user - " + e.getMessage(), e);
         }
     }
 
     /**
-     * Detach a user:
-     * 1) Revoke tokens in Firebase (immediate lockout).
-     * 2) Soft-delete locally (disabled + deletionRequestedAt).
-     * 3) Attempt hard delete locally (if it fails, keep soft-delete flags for a later retry).
+     * Detach a user with soft-delete and Firebase revocation.
      */
     @Transactional
     public void removeUser(CurrentUserDetails user) {
         String uid = user.uid();
 
-        // 1) Revoke Firebase tokens first; if this fails, abort (user would still be able to call the API).
+        // 1. Revoke Firebase tokens
         try {
+            logger.info("Revoking Firebase tokens for user: {}", uid);
             firebaseAuth.revokeRefreshTokens(uid);
         } catch (FirebaseAuthException fae) {
+            logger.error("Firebase revocation failed for user {}: {}", uid, fae.getMessage(), fae);
             throw new RuntimeException("Failed to revoke Firebase tokens for user " + uid, fae);
+        } catch (Exception e) {
+            logger.error("Unexpected error during Firebase revocation for user {}: {}", uid, e.getMessage(), e);
+            throw new RuntimeException("Unexpected error during Firebase revocation for user " + uid + ": " + e.getMessage(), e);
         }
 
+        // 2. Soft-delete and attempt hard delete
         try {
-            User userInDB = this.userRepository.findByFirebaseUid(uid);
+            User userInDB = userRepository.findByFirebaseUid(uid);
             if (userInDB == null) {
-                // Already gone locally; nothing to do (idempotent)
+                logger.info("No local user found for UID {}; skipping deletion", uid);
                 return;
             }
 
-            // 2) Soft delete (disable + mark timestamp)
             userInDB.setDisabled(true);
             userInDB.setDeletionRequestedAt(Instant.now());
-            // Persist flags immediately so they remain even if hard delete fails
-            this.userRepository.saveAndFlush(userInDB);
+            userRepository.saveAndFlush(userInDB);
 
-            // 3) Attempt hard delete
-            this.userRepository.delete(userInDB);
-
+            logger.info("Attempting hard delete for user: {}", uid);
+            userRepository.delete(userInDB);
         } catch (DataAccessException dae) {
-            // Swallow so the transaction STILL COMMITS the soft-delete flags.
+            logger.warn("Database delete failed for user {} — soft-delete persisted", uid, dae);
+        } catch (Exception e) {
+            logger.error("Unexpected error during user deletion for {}: {}", uid, e.getMessage(), e);
         }
     }
 }
