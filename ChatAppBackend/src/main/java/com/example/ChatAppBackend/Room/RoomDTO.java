@@ -9,4 +9,25 @@ public class RoomDTO {
 
     @NotBlank(message = "Email is mandatory.")
     private String inviteeEmail;
+
+    public RoomDTO(String name, String inviteeEmail) {
+        this.name = name;
+        this.inviteeEmail = inviteeEmail;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getInviteeEmail() {
+        return inviteeEmail;
+    }
+
+    public void setInviteeEmail(String inviteeEmail) {
+        this.inviteeEmail = inviteeEmail;
+    }
 }

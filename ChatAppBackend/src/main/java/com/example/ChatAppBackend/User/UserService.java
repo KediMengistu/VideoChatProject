@@ -70,6 +70,32 @@ public class UserService {
     }
 
     /**
+     * Retrieve user by Firebase email.
+     */
+    @Transactional(readOnly = true)
+    public User retrieveUserViaEmail(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+
+        try {
+            logger.debug("Retrieving user with email: {}", normalizedEmail);
+            User user = userRepository.findByEmail(normalizedEmail);
+
+            if (user == null) {
+                logger.warn("User not found with email: {}", normalizedEmail);
+                throw new ResourceNotFoundException("User not found with email: " + normalizedEmail);
+            }
+
+            return user;
+
+        } catch (ResourceNotFoundException rnfe) {
+            throw rnfe; // preserves HTTP 404
+        } catch (Exception e) {
+            logger.error("Failed to retrieve user with email {}. Reason: {}", normalizedEmail, e.getMessage(), e);
+            throw new RuntimeException("Failed to retrieve user by email - " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Detach a user with soft-delete and Firebase revocation.
      */
     @Transactional
