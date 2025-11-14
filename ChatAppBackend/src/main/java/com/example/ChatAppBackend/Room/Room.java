@@ -2,13 +2,12 @@ package com.example.ChatAppBackend.Room;
 
 import com.example.ChatAppBackend.User.User;
 import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name="rooms")
+@Table(name = "rooms")
 public class Room {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -38,6 +37,24 @@ public class Room {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    // --- New Fields ---
+
+    @Column(nullable = false, unique = true)
+    private String roomKeyCode;
+
+    @Column(nullable = false)
+    private Instant roomKeyCodeExpiresAt;
+
+    @Column(nullable = false)
+    private boolean roomKeyCodeUsedWithin15Min = false;
+
+    @Column(nullable = false)
+    private boolean disabled = false;
+
+    private Instant deletionRequestedAt;
+
+    // --- Getters / Setters ---
+
     public UUID getId() {
         return id;
     }
@@ -54,36 +71,12 @@ public class Room {
         this.name = name;
     }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
+    public User getHost() {
+        return host;
     }
 
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public RoomStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(RoomStatus status) {
-        this.status = status;
-    }
-
-    public User getGuest() {
-        return guest;
-    }
-
-    public void setGuest(User guest) {
-        this.guest = guest;
+    public void setHost(User host) {
+        this.host = host;
     }
 
     public String getInviteeEmail() {
@@ -94,11 +87,75 @@ public class Room {
         this.inviteeEmail = inviteeEmail;
     }
 
-    public User getHost() {
-        return host;
+    public User getGuest() {
+        return guest;
     }
 
-    public void setHost(User host) {
-        this.host = host;
+    public void setGuest(User guest) {
+        this.guest = guest;
+    }
+
+    public RoomStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(RoomStatus status) {
+        this.status = status;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public String getRoomKeyCode() {
+        return roomKeyCode;
+    }
+
+    public void setRoomKeyCode(String roomKeyCode) {
+        this.roomKeyCode = roomKeyCode;
+    }
+
+    public Instant getRoomKeyCodeExpiresAt() {
+        return roomKeyCodeExpiresAt;
+    }
+
+    public void setRoomKeyCodeExpiresAt(Instant roomKeyCodeExpiresAt) {
+        this.roomKeyCodeExpiresAt = roomKeyCodeExpiresAt;
+    }
+
+    public boolean isRoomKeyCodeUsedWithin15Min() {
+        return roomKeyCodeUsedWithin15Min;
+    }
+
+    public void setRoomKeyCodeUsedWithin15Min(boolean roomKeyCodeUsedWithin15Min) {
+        this.roomKeyCodeUsedWithin15Min = roomKeyCodeUsedWithin15Min;
+    }
+
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public void setDisabled(boolean disabled) {
+        this.disabled = disabled;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
     }
 }

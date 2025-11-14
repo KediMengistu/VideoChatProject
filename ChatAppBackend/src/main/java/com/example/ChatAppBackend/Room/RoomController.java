@@ -19,4 +19,10 @@ public class RoomController {
     public Room enter(@CurrentSecurityContext(expression = "authentication.details") CurrentUserDetails user, @Valid @RequestBody RoomDTO roomDTO){
         return this.roomService.createRoom(user, roomDTO);
     }
+
+    @PutMapping("/join-room")
+    public Room joinRoom(@CurrentSecurityContext(expression = "authentication.details") CurrentUserDetails user, @Valid @RequestBody RoomKeyCodeDTO roomKeyCodeDTO
+    ) {
+        return this.roomService.joinRoom(user, roomKeyCodeDTO);
+    }
 }

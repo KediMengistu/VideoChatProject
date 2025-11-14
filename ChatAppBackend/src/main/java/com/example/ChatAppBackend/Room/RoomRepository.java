@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface RoomRepository extends JpaRepository<Room, UUID> {
     boolean existsByHostAndStatusIn(User host, Collection<RoomStatus> statuses);
     boolean existsByGuestAndStatus(User guest, RoomStatus status);
+    Room findByRoomKeyCode(String roomKeyCode);
 }
