@@ -7,12 +7,15 @@ import com.example.ChatAppBackend.User.User;
 import com.example.ChatAppBackend.User.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class RoomService {
@@ -39,6 +42,15 @@ public class RoomService {
 
             // 1. Validate and retrieve current user
             User currentUser = userService.retrieveUser(user);
+
+            // ==== CHANGE: 24-hour host rate limiter check ====
+            Instant now = Instant.now();
+            Instant lastHostedAt = currentUser.getLastHostedAt();
+            if (lastHostedAt != null && now.isBefore(lastHostedAt.plus(24, ChronoUnit.HOURS))) {
+                logger.warn("User {} attempted to host within 24 hours. lastHostedAt={}", currentUser.getEmail(), lastHostedAt);
+                throw new BadRequestException("You can only host a room once every 24 hours.");
+            }
+            // ==== END CHANGE ====
 
             // 2. Normalize emails and check self-invitation
             String normalizedInviteeEmail = roomDTO.getInviteeEmail().trim().toLowerCase();
@@ -70,7 +82,9 @@ public class RoomService {
             String encryptedRoomKeyCode = DigestUtils.sha256Hex(rawRoomKeyCode);
 
             // 6. Build and save room
-            Instant now = Instant.now();
+            // ==== CHANGE: now already created above for rate limiter; reuse it ====
+            // Instant now = Instant.now();
+            // ==== END CHANGE ====
 
             Room newRoom = new Room();
             newRoom.setName(roomDTO.getName());
@@ -85,6 +99,10 @@ public class RoomService {
             newRoom.setRoomKeyCodeUsedWithin15Min(false);
             newRoom.setDisabled(false);
             newRoom.setDeletionRequestedAt(null);
+
+            // ==== CHANGE: set lastHostedAt only when we are creating the room ====
+            currentUser.setLastHostedAt(now);
+            // ==== END CHANGE ====
 
             Room savedRoom = roomRepository.save(newRoom);
             logger.info("Room created successfully. ID: {}, RoomKeyCode (raw): {}", savedRoom.getId(), rawRoomKeyCode);
@@ -219,4 +237,84 @@ public class RoomService {
             throw new RuntimeException("Failed to join room - " + e.getMessage(), e);
         }
     }
+
+    /**
+     * Leave the given room (host or guest) by roomId.
+     *
+     * Behavior:
+     * - Load room by id
+     * - Ensure current user is host or guest of that room
+     * - If already CLOSED/disabled → idempotent no-op
+     * - Mark room disabled + CLOSED + set deletionRequestedAt
+     * - Attempt hard delete; if it fails, soft-delete remains
+     */
+    @Transactional
+    public void leaveRoom(CurrentUserDetails user, UUID roomId) {
+        try {
+            logger.debug("User {} attempting to leave room with id {}",
+                    user.email(), roomId);
+
+            // 1. Validate & retrieve current user
+            User currentUser = userService.retrieveUser(user);
+
+            // 2. Load room by id
+            Room room = roomRepository.findById(roomId)
+                    .orElseThrow(() -> {
+                        logger.warn("Room {} not found for leaveRoom request by user {}",
+                                roomId, currentUser.getEmail());
+                        return new ResourceNotFoundException("Room not found.");
+                    });
+
+            // 3. Check membership: current user must be host or guest
+            boolean isHost = room.getHost() != null
+                    && room.getHost().getId().equals(currentUser.getId());
+            boolean isGuest = room.getGuest() != null
+                    && room.getGuest().getId().equals(currentUser.getId());
+
+            if (!isHost && !isGuest) {
+                // For security: pretend room doesn't exist for this user
+                logger.warn("User {} attempted to leave room {} they do not belong to.",
+                        currentUser.getEmail(), room.getId());
+                throw new ResourceNotFoundException("Room not found.");
+            }
+
+            // 4. If already closed/disabled, treat as idempotent no-op
+            if (room.isDisabled() || room.getStatus() == RoomStatus.CLOSED) {
+                logger.info("Room {} already closed/disabled; nothing to do for user {}.",
+                        room.getId(), currentUser.getEmail());
+                return;
+            }
+
+            Instant now = Instant.now();
+
+            // 5. Mark soft-delete flags & CLOSED status
+            room.setDisabled(true);
+            room.setDeletionRequestedAt(now);
+            room.setStatus(RoomStatus.CLOSED);
+            room.setUpdatedAt(now);
+
+            roomRepository.saveAndFlush(room);
+
+            logger.info("User {} ({}) requested room {} to be closed.",
+                    currentUser.getEmail(), isHost ? "host" : "guest", room.getId());
+
+            // 6. Attempt hard delete, similar to UserService.removeUser
+            try {
+                logger.info("Attempting hard delete for room: {}", room.getId());
+                roomRepository.delete(room);
+            } catch (DataAccessException dae) {
+                logger.warn("Database delete failed for room {} — soft-delete persisted",
+                        room.getId(), dae);
+            }
+
+        } catch (ResourceNotFoundException e) {
+            // propagate 404
+            throw e;
+        } catch (Exception e) {
+            logger.error("Unexpected error during room leave for user {}: {}",
+                    user.uid(), e.getMessage(), e);
+            throw new RuntimeException("Failed to leave room - " + e.getMessage(), e);
+        }
+    }
+
 }

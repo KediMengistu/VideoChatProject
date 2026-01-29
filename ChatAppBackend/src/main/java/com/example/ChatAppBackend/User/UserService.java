@@ -33,17 +33,27 @@ public class UserService {
         User u = userRepository.findByFirebaseUid(user.uid());
         if (u == null) {
             logger.info("Creating new user with Firebase UID: {}", user.uid());
+            Instant now = Instant.now();
             u = new User();
             u.setFirebaseUid(user.uid());
             u.setEmail(user.email());
             u.setDisabled(false);
             u.setDeletionRequestedAt(null);
+            u.setCreatedAt(now);
+            u.setLastLoginAt(now);
+
+            // ==== CHANGE: initialize lastHostedAt for new users ====
+            // New users haven't hosted a room yet.
+            u.setLastHostedAt(null);
+            // ==== END CHANGE ====
+
             return userRepository.save(u);
         } else {
             logger.info("Updating last login for existing user with Firebase UID: {}", user.uid());
+            Instant now = Instant.now();
             u.setDisabled(false);
             u.setDeletionRequestedAt(null);
-            u.setLastLoginAt(Instant.now());
+            u.setLastLoginAt(now);
             return userRepository.save(u);
         }
     }

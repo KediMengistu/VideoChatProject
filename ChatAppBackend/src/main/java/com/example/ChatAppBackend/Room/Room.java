@@ -23,8 +23,8 @@ public class Room {
     @Column(nullable = false)
     private String inviteeEmail;
 
-    @OneToOne
-    @JoinColumn(referencedColumnName = "id", unique = true)
+    @ManyToOne
+    @JoinColumn(referencedColumnName = "id")
     private User guest;
 
     @Enumerated(EnumType.STRING)

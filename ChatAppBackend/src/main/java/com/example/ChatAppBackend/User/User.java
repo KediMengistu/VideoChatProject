@@ -25,6 +25,11 @@ public class User {
     @Column(nullable = false)
     private Instant lastLoginAt;
 
+    // ==== CHANGE: 24-hour host rate limiter field added ====
+    // Stores the last time this user hosted (created) a room.
+    private Instant lastHostedAt;
+    // ==== END CHANGE ====
+
     // ---- Soft-delete / account state ----
 
     /**
@@ -84,6 +89,16 @@ public class User {
         this.lastLoginAt = lastLoginAt;
     }
 
+    // ==== CHANGE: getter/setter for lastHostedAt ====
+    public Instant getLastHostedAt() {
+        return lastHostedAt;
+    }
+
+    public void setLastHostedAt(Instant lastHostedAt) {
+        this.lastHostedAt = lastHostedAt;
+    }
+    // ==== END CHANGE ====
+
     public boolean isDisabled() {
         return disabled;
     }
@@ -99,12 +114,4 @@ public class User {
     public void setDeletionRequestedAt(Instant deletionRequestedAt) {
         this.deletionRequestedAt = deletionRequestedAt;
     }
-
-    @PrePersist
-    public void onCreate() {
-        Instant now = Instant.now();
-        if (createdAt == null) createdAt = now;
-        if (lastLoginAt == null || lastLoginAt.isBefore(createdAt)) lastLoginAt = createdAt;
-    }
-
 }
