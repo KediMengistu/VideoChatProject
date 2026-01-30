@@ -1,5 +1,6 @@
 package com.example.ChatAppBackend.Room;
 
+import com.example.ChatAppBackend.Email.EmailService; // ==== CHANGE: inject EmailService into RoomService ====
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.BadRequestException;
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.ResourceNotFoundException;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
@@ -25,10 +26,17 @@ public class RoomService {
     private final UserService userService;
     private final RoomRepository roomRepository;
 
-    public RoomService(UserService userService, RoomRepository roomRepository) {
+    // ==== CHANGE: EmailService dependency ====
+    private final EmailService emailService;
+    // ==== END CHANGE ====
+
+    // ==== CHANGE: constructor includes EmailService ====
+    public RoomService(UserService userService, RoomRepository roomRepository, EmailService emailService) {
         this.userService = userService;
         this.roomRepository = roomRepository;
+        this.emailService = emailService;
     }
+    // ==== END CHANGE ====
 
     /**
      * Creates a new room after validating that:
@@ -82,10 +90,6 @@ public class RoomService {
             String encryptedRoomKeyCode = DigestUtils.sha256Hex(rawRoomKeyCode);
 
             // 6. Build and save room
-            // ==== CHANGE: now already created above for rate limiter; reuse it ====
-            // Instant now = Instant.now();
-            // ==== END CHANGE ====
-
             Room newRoom = new Room();
             newRoom.setName(roomDTO.getName());
             newRoom.setHost(currentUser);
@@ -105,7 +109,12 @@ public class RoomService {
             // ==== END CHANGE ====
 
             Room savedRoom = roomRepository.save(newRoom);
-            logger.info("Room created successfully. ID: {}, RoomKeyCode (raw): {}", savedRoom.getId(), rawRoomKeyCode);
+            logger.info("Room saved (pending commit). ID: {}", savedRoom.getId());
+
+            // ==== CHANGE: send email INSIDE transaction; if this throws, transaction rolls back ====
+            emailService.sendEmail(rawRoomKeyCode, normalizedInviteeEmail);
+            logger.info("Invitation email sent for room {} to {}", savedRoom.getId(), normalizedInviteeEmail);
+            // ==== END CHANGE ====
 
             // NOTE: you would send rawRoomKeyCode in the future email
 
@@ -119,31 +128,16 @@ public class RoomService {
         }
     }
 
-    /**
-     * Join an existing room using a one-time room key code.
-     * Validates:
-     * - User exists
-     * - Room with given key exists
-     * - Key not expired
-     * - Key not already used
-     * - Room is still joinable (PENDING, not disabled)
-     * - Current user's email matches the invitee email in the room
-     * - User is not the host of this room or any other pending/active room
-     * - User is not a guest in any other active room
-     */
     @Transactional
     public Room joinRoom(CurrentUserDetails user, RoomKeyCodeDTO roomKeyCodeDTO) {
         try {
             logger.debug("User {} attempting to join room with key.", user.email());
 
-            // 1. Validate & retrieve current user
             User currentUser = userService.retrieveUser(user);
 
-            // 2. Normalize raw key from DTO and encrypt it to match DB
             String rawKey = roomKeyCodeDTO.getRoomKeyCode().trim();
             String encryptedKey = DigestUtils.sha256Hex(rawKey);
 
-            // 3. Find room by encrypted key
             Room room = roomRepository.findByRoomKeyCode(encryptedKey);
             if (room == null) {
                 logger.warn("No room found for provided key by user {}", currentUser.getEmail());
@@ -152,21 +146,18 @@ public class RoomService {
 
             Instant now = Instant.now();
 
-            // 4. Check key expiration
             if (now.isAfter(room.getRoomKeyCodeExpiresAt())) {
                 logger.warn("Expired room key used by user {} for room {}",
                         currentUser.getEmail(), room.getId());
                 throw new BadRequestException("This room key has expired.");
             }
 
-            // 5. Check key already used
             if (room.isRoomKeyCodeUsedWithin15Min()) {
                 logger.warn("Already-used room key used by user {} for room {}",
                         currentUser.getEmail(), room.getId());
                 throw new BadRequestException("This room key has already been used.");
             }
 
-            // 6. Check room is still joinable
             if (room.isDisabled()) {
                 logger.warn("User {} attempted to join disabled room {}",
                         currentUser.getEmail(), room.getId());
@@ -179,7 +170,6 @@ public class RoomService {
                 throw new BadRequestException("This room is not available to join.");
             }
 
-            // 7. Ensure this user is the invitee
             String normalizedUserEmail = currentUser.getEmail().trim().toLowerCase();
             String normalizedInviteeEmail = room.getInviteeEmail().trim().toLowerCase();
 
@@ -189,7 +179,6 @@ public class RoomService {
                 throw new BadRequestException("You are not the invitee for this room.");
             }
 
-            // 8. Ensure they are not the host of this room
             if (room.getHost() != null &&
                     room.getHost().getId().equals(currentUser.getId())) {
                 logger.warn("User {} attempted to join their own room {} as guest",
@@ -197,7 +186,6 @@ public class RoomService {
                 throw new BadRequestException("You cannot join your own room as a guest.");
             }
 
-            // 9. Ensure they are not hosting any other pending/active room
             boolean isAlreadyHost = roomRepository.existsByHostAndStatusIn(
                     currentUser, List.of(RoomStatus.PENDING, RoomStatus.ACTIVE)
             );
@@ -207,7 +195,6 @@ public class RoomService {
                 throw new BadRequestException("You are already hosting a room.");
             }
 
-            // 10. Ensure they are not a guest in any other active room
             boolean isGuestInActiveRoom = roomRepository.existsByGuestAndStatus(
                     currentUser, RoomStatus.ACTIVE
             );
@@ -217,7 +204,6 @@ public class RoomService {
                 throw new BadRequestException("You are already participating in another room.");
             }
 
-            // 11. Attach user as guest, mark key as used, and activate room
             room.setGuest(currentUser);
             room.setStatus(RoomStatus.ACTIVE);
             room.setRoomKeyCodeUsedWithin15Min(true);
@@ -238,26 +224,14 @@ public class RoomService {
         }
     }
 
-    /**
-     * Leave the given room (host or guest) by roomId.
-     *
-     * Behavior:
-     * - Load room by id
-     * - Ensure current user is host or guest of that room
-     * - If already CLOSED/disabled → idempotent no-op
-     * - Mark room disabled + CLOSED + set deletionRequestedAt
-     * - Attempt hard delete; if it fails, soft-delete remains
-     */
     @Transactional
     public void leaveRoom(CurrentUserDetails user, UUID roomId) {
         try {
             logger.debug("User {} attempting to leave room with id {}",
                     user.email(), roomId);
 
-            // 1. Validate & retrieve current user
             User currentUser = userService.retrieveUser(user);
 
-            // 2. Load room by id
             Room room = roomRepository.findById(roomId)
                     .orElseThrow(() -> {
                         logger.warn("Room {} not found for leaveRoom request by user {}",
@@ -265,20 +239,17 @@ public class RoomService {
                         return new ResourceNotFoundException("Room not found.");
                     });
 
-            // 3. Check membership: current user must be host or guest
             boolean isHost = room.getHost() != null
                     && room.getHost().getId().equals(currentUser.getId());
             boolean isGuest = room.getGuest() != null
                     && room.getGuest().getId().equals(currentUser.getId());
 
             if (!isHost && !isGuest) {
-                // For security: pretend room doesn't exist for this user
                 logger.warn("User {} attempted to leave room {} they do not belong to.",
                         currentUser.getEmail(), room.getId());
                 throw new ResourceNotFoundException("Room not found.");
             }
 
-            // 4. If already closed/disabled, treat as idempotent no-op
             if (room.isDisabled() || room.getStatus() == RoomStatus.CLOSED) {
                 logger.info("Room {} already closed/disabled; nothing to do for user {}.",
                         room.getId(), currentUser.getEmail());
@@ -287,7 +258,6 @@ public class RoomService {
 
             Instant now = Instant.now();
 
-            // 5. Mark soft-delete flags & CLOSED status
             room.setDisabled(true);
             room.setDeletionRequestedAt(now);
             room.setStatus(RoomStatus.CLOSED);
@@ -298,7 +268,6 @@ public class RoomService {
             logger.info("User {} ({}) requested room {} to be closed.",
                     currentUser.getEmail(), isHost ? "host" : "guest", room.getId());
 
-            // 6. Attempt hard delete, similar to UserService.removeUser
             try {
                 logger.info("Attempting hard delete for room: {}", room.getId());
                 roomRepository.delete(room);
@@ -308,7 +277,6 @@ public class RoomService {
             }
 
         } catch (ResourceNotFoundException e) {
-            // propagate 404
             throw e;
         } catch (Exception e) {
             logger.error("Unexpected error during room leave for user {}: {}",
@@ -316,5 +284,4 @@ public class RoomService {
             throw new RuntimeException("Failed to leave room - " + e.getMessage(), e);
         }
     }
-
 }
