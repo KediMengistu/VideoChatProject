@@ -5,6 +5,7 @@ import com.example.ChatAppBackend.Exceptions.CustomExceptions.BadRequestExceptio
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.ResourceNotFoundException;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
 import com.example.ChatAppBackend.User.User;
+import com.example.ChatAppBackend.User.UserRepository; // ==== CHANGE: inject UserRepository so we can save lastHostedAt ====
 import com.example.ChatAppBackend.User.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,14 +27,19 @@ public class RoomService {
     private final UserService userService;
     private final RoomRepository roomRepository;
 
+    // ==== CHANGE: inject UserRepository so we can save lastHostedAt ====
+    private final UserRepository userRepository;
+    // ==== END CHANGE ====
+
     // ==== CHANGE: EmailService dependency ====
     private final EmailService emailService;
     // ==== END CHANGE ====
 
-    // ==== CHANGE: constructor includes EmailService ====
-    public RoomService(UserService userService, RoomRepository roomRepository, EmailService emailService) {
+    // ==== CHANGE: constructor includes UserRepository and EmailService ====
+    public RoomService(UserService userService, RoomRepository roomRepository, UserRepository userRepository, EmailService emailService) {
         this.userService = userService;
         this.roomRepository = roomRepository;
+        this.userRepository = userRepository;
         this.emailService = emailService;
     }
     // ==== END CHANGE ====
@@ -106,6 +112,10 @@ public class RoomService {
 
             // ==== CHANGE: set lastHostedAt only when we are creating the room ====
             currentUser.setLastHostedAt(now);
+            // ==== END CHANGE ====
+
+            // ==== CHANGE: persist the updated host user so rate limiting works ====
+            userRepository.save(currentUser);
             // ==== END CHANGE ====
 
             Room savedRoom = roomRepository.save(newRoom);

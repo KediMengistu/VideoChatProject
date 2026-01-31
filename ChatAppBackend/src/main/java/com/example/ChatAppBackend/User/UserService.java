@@ -32,7 +32,7 @@ public class UserService {
     public User createOrTouchUser(CurrentUserDetails user) {
         User u = userRepository.findByFirebaseUid(user.uid());
         if (u == null) {
-            logger.info("Creating new user with Firebase UID: {}", user.uid());
+            logger.info("Creating new user with Firebase UID: {}, email: {}", user.uid(), user.email());
             Instant now = Instant.now();
             u = new User();
             u.setFirebaseUid(user.uid());
@@ -49,7 +49,7 @@ public class UserService {
 
             return userRepository.save(u);
         } else {
-            logger.info("Updating last login for existing user with Firebase UID: {}", user.uid());
+            logger.info("Updating last login for existing user with Firebase UID: {}, email: {}", user.uid(), user.email());
             Instant now = Instant.now();
             u.setDisabled(false);
             u.setDeletionRequestedAt(null);
