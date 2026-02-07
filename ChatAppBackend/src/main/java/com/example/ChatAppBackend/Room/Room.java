@@ -1,14 +1,19 @@
 package com.example.ChatAppBackend.Room;
 
+import com.example.ChatAppBackend.Ticket.Ticket;
 import com.example.ChatAppBackend.User.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "rooms")
 public class Room {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -37,7 +42,7 @@ public class Room {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    // --- New Fields ---
+    // --- Existing Fields ---
 
     @Column(nullable = false, unique = true)
     private String roomKeyCode;
@@ -53,109 +58,54 @@ public class Room {
 
     private Instant deletionRequestedAt;
 
+    // --- NEW: Parent-side relationship to tickets ---
+    // When Room is deleted via JPA, all its tickets are deleted too.
+    // JsonIgnore prevents infinite recursion when returning Room as JSON.
+    @JsonIgnore
+    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Ticket> tickets = new ArrayList<>();
+
     // --- Getters / Setters ---
 
-    public UUID getId() {
-        return id;
-    }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
+    public User getHost() { return host; }
+    public void setHost(User host) { this.host = host; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public String getInviteeEmail() { return inviteeEmail; }
+    public void setInviteeEmail(String inviteeEmail) { this.inviteeEmail = inviteeEmail; }
 
-    public User getHost() {
-        return host;
-    }
+    public User getGuest() { return guest; }
+    public void setGuest(User guest) { this.guest = guest; }
 
-    public void setHost(User host) {
-        this.host = host;
-    }
+    public RoomStatus getStatus() { return status; }
+    public void setStatus(RoomStatus status) { this.status = status; }
 
-    public String getInviteeEmail() {
-        return inviteeEmail;
-    }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public void setInviteeEmail(String inviteeEmail) {
-        this.inviteeEmail = inviteeEmail;
-    }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
-    public User getGuest() {
-        return guest;
-    }
+    public String getRoomKeyCode() { return roomKeyCode; }
+    public void setRoomKeyCode(String roomKeyCode) { this.roomKeyCode = roomKeyCode; }
 
-    public void setGuest(User guest) {
-        this.guest = guest;
-    }
+    public Instant getRoomKeyCodeExpiresAt() { return roomKeyCodeExpiresAt; }
+    public void setRoomKeyCodeExpiresAt(Instant roomKeyCodeExpiresAt) { this.roomKeyCodeExpiresAt = roomKeyCodeExpiresAt; }
 
-    public RoomStatus getStatus() {
-        return status;
-    }
+    public boolean isRoomKeyCodeUsedWithin15Min() { return roomKeyCodeUsedWithin15Min; }
+    public void setRoomKeyCodeUsedWithin15Min(boolean roomKeyCodeUsedWithin15Min) { this.roomKeyCodeUsedWithin15Min = roomKeyCodeUsedWithin15Min; }
 
-    public void setStatus(RoomStatus status) {
-        this.status = status;
-    }
+    public boolean isDisabled() { return disabled; }
+    public void setDisabled(boolean disabled) { this.disabled = disabled; }
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+    public Instant getDeletionRequestedAt() { return deletionRequestedAt; }
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) { this.deletionRequestedAt = deletionRequestedAt; }
 
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public String getRoomKeyCode() {
-        return roomKeyCode;
-    }
-
-    public void setRoomKeyCode(String roomKeyCode) {
-        this.roomKeyCode = roomKeyCode;
-    }
-
-    public Instant getRoomKeyCodeExpiresAt() {
-        return roomKeyCodeExpiresAt;
-    }
-
-    public void setRoomKeyCodeExpiresAt(Instant roomKeyCodeExpiresAt) {
-        this.roomKeyCodeExpiresAt = roomKeyCodeExpiresAt;
-    }
-
-    public boolean isRoomKeyCodeUsedWithin15Min() {
-        return roomKeyCodeUsedWithin15Min;
-    }
-
-    public void setRoomKeyCodeUsedWithin15Min(boolean roomKeyCodeUsedWithin15Min) {
-        this.roomKeyCodeUsedWithin15Min = roomKeyCodeUsedWithin15Min;
-    }
-
-    public boolean isDisabled() {
-        return disabled;
-    }
-
-    public void setDisabled(boolean disabled) {
-        this.disabled = disabled;
-    }
-
-    public Instant getDeletionRequestedAt() {
-        return deletionRequestedAt;
-    }
-
-    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
-        this.deletionRequestedAt = deletionRequestedAt;
-    }
+    public List<Ticket> getTickets() { return tickets; }
+    public void setTickets(List<Ticket> tickets) { this.tickets = tickets; }
 }

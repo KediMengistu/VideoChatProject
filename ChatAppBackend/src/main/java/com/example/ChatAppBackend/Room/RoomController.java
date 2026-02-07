@@ -1,5 +1,6 @@
 package com.example.ChatAppBackend.Room;
 
+import com.example.ChatAppBackend.Ticket.TicketIssueResponseDTO;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.CurrentSecurityContext;
@@ -18,7 +19,7 @@ public class RoomController {
     }
 
     @PostMapping("/create-room")
-    public Room enter(
+    public TicketIssueResponseDTO createRoom(
             @CurrentSecurityContext(expression = "authentication.details") CurrentUserDetails user,
             @Valid @RequestBody RoomDTO roomDTO
     ){
@@ -26,7 +27,7 @@ public class RoomController {
     }
 
     @PutMapping("/join-room")
-    public Room joinRoom(
+    public TicketIssueResponseDTO joinRoom(
             @CurrentSecurityContext(expression = "authentication.details") CurrentUserDetails user,
             @Valid @RequestBody RoomKeyCodeDTO roomKeyCodeDTO
     ) {
