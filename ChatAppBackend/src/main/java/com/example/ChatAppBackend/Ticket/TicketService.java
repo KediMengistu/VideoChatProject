@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -41,7 +42,7 @@ public class TicketService {
 
         if (active != null) {
             active.setRevoked(true);
-            ticketRepository.save(active);
+            ticketRepository.saveAndFlush(active);
         }
 
         String rawToken = UUID.randomUUID().toString();
@@ -99,5 +100,28 @@ public class TicketService {
             throw new ResourceNotFoundException("Room not found.");
         }
         return isHost ? TicketRole.HOST : TicketRole.GUEST;
+    }
+
+    /**
+     * Validates a ticket for WebSocket handshake. Returns empty if invalid.
+     */
+    @Transactional(readOnly = true)
+    public Optional<TicketValidationResult> validateForWebSocket(String rawToken, UUID roomId) {
+        if (rawToken == null || rawToken.isBlank() || roomId == null) {
+            return Optional.empty();
+        }
+        String tokenHash = DigestUtils.sha256Hex(rawToken.trim());
+        Ticket ticket = ticketRepository.findByTokenHash(tokenHash);
+        if (ticket == null || ticket.isRevoked() || Instant.now().isAfter(ticket.getExpiresAt())) {
+            return Optional.empty();
+        }
+        if (!ticket.getRoom().getId().equals(roomId)) {
+            return Optional.empty();
+        }
+        Room room = ticket.getRoom();
+        if (room.isDisabled() || room.getStatus() == RoomStatus.CLOSED) {
+            return Optional.empty();
+        }
+        return Optional.of(new TicketValidationResult(ticket.getRoom().getId(), ticket.getRole()));
     }
 }

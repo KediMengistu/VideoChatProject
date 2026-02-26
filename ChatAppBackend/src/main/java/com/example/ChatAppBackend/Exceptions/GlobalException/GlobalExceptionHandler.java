@@ -3,6 +3,8 @@ package com.example.ChatAppBackend.Exceptions.GlobalException;
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.BadRequestException;
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -19,6 +21,7 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handle cases where a resource is not found. Returns HTTP 404 with JSON body.
@@ -78,6 +81,7 @@ public class GlobalExceptionHandler {
         body.put("error", "Internal Server Error");
         body.put("message", "An unexpected error occurred");
         body.put("path", request.getRequestURI());
+        logger.error("Unexpected error", ex);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }

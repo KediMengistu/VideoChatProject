@@ -1,5 +1,6 @@
 package com.example.ChatAppBackend.User;
 
+import com.example.ChatAppBackend.Exceptions.CustomExceptions.BadRequestException;
 import com.example.ChatAppBackend.Exceptions.CustomExceptions.ResourceNotFoundException;
 import com.example.ChatAppBackend.TokenAndFilter.CurrentUserDetails;
 import com.google.firebase.auth.FirebaseAuth;
@@ -70,9 +71,13 @@ public class UserService {
                 logger.warn("User not found with Firebase UID: {}", user.uid());
                 throw new ResourceNotFoundException("User not found with Firebase UID: " + user.uid());
             }
+            if (currentUser.isDisabled()) {
+                logger.warn("Disabled user attempted action: {}", user.uid());
+                throw new BadRequestException("Account is disabled.");
+            }
             return currentUser;
-        } catch (ResourceNotFoundException rnfe) {
-            throw rnfe; // preserve status code
+        } catch (ResourceNotFoundException | BadRequestException e) {
+            throw e; // preserve status code
         } catch (Exception e) {
             logger.error("Failed to retrieve user with Firebase UID: {}. Reason: {}", user.uid(), e.getMessage(), e);
             throw new RuntimeException("Failed to retrieve user - " + e.getMessage(), e);
@@ -94,11 +99,15 @@ public class UserService {
                 logger.warn("User not found with email: {}", normalizedEmail);
                 throw new ResourceNotFoundException("User not found with email: " + normalizedEmail);
             }
+            if (user.isDisabled()) {
+                logger.warn("Disabled user (invitee) attempted action: {}", normalizedEmail);
+                throw new BadRequestException("Account is disabled.");
+            }
 
             return user;
 
-        } catch (ResourceNotFoundException rnfe) {
-            throw rnfe; // preserves HTTP 404
+        } catch (ResourceNotFoundException | BadRequestException e) {
+            throw e; // preserves HTTP status
         } catch (Exception e) {
             logger.error("Failed to retrieve user with email {}. Reason: {}", normalizedEmail, e.getMessage(), e);
             throw new RuntimeException("Failed to retrieve user by email - " + e.getMessage(), e);
