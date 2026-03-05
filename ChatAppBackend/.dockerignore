@@ -6,3 +6,7 @@ target/
 node_modules/
 build/
 dist/
+
+# Exclude env files - pass secrets at runtime
+.env
+.env.*

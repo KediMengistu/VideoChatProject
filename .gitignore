@@ -1,12 +1,11 @@
-# Ignore dotenv files
+# Ignore dotenv files (no .env files committed)
 /.env
 **/.env
 **/.env.local
 **/.env.development
 **/.env.production
+**/.env*
 
-# Keep templates
-!.env.example
-!**/.env.example
-
-**.idea
+# Editor / IDE
+**/.idea
+**/.vscode/

@@ -1,51 +1,50 @@
-import { useEffect } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
-import { motion } from "framer-motion"
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth"
-import { auth } from "@/lib/firebase"
-import { useAppSelector } from "@/hooks/useAppSelector"
-import { Button } from "@/components/ui/button"
+import { useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useAppSelector } from "@/hooks/useAppSelector";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { user, loading } = useAppSelector((state) => state.auth)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, loading } = useAppSelector((state) => state.auth);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/"
+  const from =
+    (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(from, { replace: true })
+      navigate(from, { replace: true });
     }
-  }, [user, loading, navigate, from])
+  }, [user, loading, navigate, from]);
 
   const handleGoogleSignIn = async () => {
     try {
-      const provider = new GoogleAuthProvider()
-      provider.setCustomParameters({ prompt: "select_account" })
-      await signInWithPopup(auth, provider)
-      navigate(from, { replace: true })
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      await signInWithPopup(auth, provider);
+      navigate(from, { replace: true });
     } catch (error) {
-      console.error("Google sign-in error:", error)
+      console.error("Google sign-in error:", error);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="flex w-full max-w-sm flex-col gap-6 rounded-lg border border-border bg-card p-8 shadow-sm"
-      >
+      <div className="relative flex w-full max-w-sm flex-col gap-6 rounded-lg border border-border bg-card p-8 shadow-sm">
+        <div className="absolute right-4 top-4">
+          <ThemeToggle />
+        </div>
         <div className="flex flex-col gap-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Welcome
@@ -57,9 +56,9 @@ export function LoginPage() {
 
         <Button
           onClick={handleGoogleSignIn}
-          variant="outline"
           className="w-full"
           size="lg"
+          variant="outline"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path
@@ -81,7 +80,7 @@ export function LoginPage() {
           </svg>
           Sign in with Google
         </Button>
-      </motion.div>
+      </div>
     </div>
-  )
+  );
 }
